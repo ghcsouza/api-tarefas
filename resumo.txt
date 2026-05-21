@@ -1,0 +1,3 @@
+Meu nome é Gustavo Souza
+Tenho 43 anos
+Meu IMC é (23.88, 'Peso normal')

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Gerenciador de Tarefas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px 16px; }
+    .container { width: 100%; max-width: 500px; }
+    .card { background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 16px; }
+    h1 { font-size: 22px; margin-bottom: 24px; color: #1a1a1a; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #1a1a1a; }
+    input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; outline: none; }
+    input:focus { border-color: #4f8ef7; }
+    button { width: 100%; padding: 10px; background: #4f8ef7; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+    button:hover { background: #3a7be0; }
+    .tarefa { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    .tarefa:last-child { border-bottom: none; }
+    .tarefa span { color: #1a1a1a; }
+    .tarefa.concluida span { text-decoration: line-through; color: #aaa; }
+    .acoes { display: flex; gap: 8px; }
+    .btn-small { width: auto; padding: 4px 10px; font-size: 12px; }
+    .btn-verde { background: #27ae60; }
+    .btn-verde:hover { background: #1e8449; }
+    .btn-vermelho { background: #e74c3c; }
+    .btn-vermelho:hover { background: #c0392b; }
+    .erro { color: #e74c3c; font-size: 13px; margin-top: 8px; }
+    #tela-login, #tela-app { display: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="card" id="tela-login">
+    <h1>Login</h1>
+    <input type="text" id="username" placeholder="Usuário" />
+    <input type="password" id="password" placeholder="Senha" />
+    <button onclick="login()">Entrar</button>
+    <p class="erro" id="erro-login"></p>
+  </div>
+
+  <div id="tela-app">
+    <div class="card">
+      <h1>Minhas Tarefas <span style="float:right;font-size:13px;color:#aaa;cursor:pointer" onclick="sair()">Sair</span></h1>
+      <input type="text" id="nova-titulo" placeholder="Título da tarefa" />
+      <input type="text" id="nova-descricao" placeholder="Descrição (opcional)" />
+      <button onclick="criarTarefa()">Adicionar tarefa</button>
+    </div>
+    <div class="card">
+      <h2>Lista de tarefas</h2>
+      <div id="lista-tarefas"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const API = "http://127.0.0.1:8000";
+  let token = "";
+
+  window.onload = () => {
+    document.getElementById("tela-login").style.display = "block";
+  };
+
+  async function login() {
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    const form = new URLSearchParams();
+    form.append("username", username);
+    form.append("password", password);
+
+    try {
+      const res = await fetch(`${API}/login`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+      token = data.access_token;
+      document.getElementById("tela-login").style.display = "none";
+      document.getElementById("tela-app").style.display = "block";
+      carregarTarefas();
+    } catch (e) {
+      document.getElementById("erro-login").textContent = "Usuário ou senha incorretos.";
+    }
+  }
+
+  async function carregarTarefas() {
+    const res = await fetch(`${API}/tarefas`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    const tarefas = await res.json();
+    const lista = document.getElementById("lista-tarefas");
+    lista.innerHTML = "";
+    if (tarefas.length === 0) {
+      lista.innerHTML = '<p style="color:#aaa;font-size:14px">Nenhuma tarefa ainda.</p>';
+      return;
+    }
+    tarefas.forEach(t => {
+      const div = document.createElement("div");
+      div.className = `tarefa ${t.concluida ? "concluida" : ""}`;
+      div.innerHTML = `
+        <span>${t.titulo}${t.descricao ? " — " + t.descricao : ""}</span>
+        <div class="acoes">
+          <button class="btn-small btn-verde" onclick="concluir(${t.id}, ${t.titulo ? `'${t.titulo}'` : "''"}, ${t.concluida})">
+            ${t.concluida ? "Reabrir" : "Concluir"}
+          </button>
+          <button class="btn-small btn-vermelho" onclick="deletar(${t.id})">Deletar</button>
+        </div>`;
+      lista.appendChild(div);
+    });
+  }
+
+  async function criarTarefa() {
+    const titulo = document.getElementById("nova-titulo").value;
+    if (!titulo) return;
+    await fetch(`${API}/tarefas`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ titulo, descricao: document.getElementById("nova-descricao").value, concluida: false })
+    });
+    document.getElementById("nova-titulo").value = "";
+    document.getElementById("nova-descricao").value = "";
+    carregarTarefas();
+  }
+
+  async function concluir(id, titulo, concluida) {
+    await fetch(`${API}/tarefas/${id}`, {
+      method: "PUT",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ titulo, concluida: !concluida })
+    });
+    carregarTarefas();
+  }
+
+  async function deletar(id) {
+    await fetch(`${API}/tarefas/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    carregarTarefas();
+  }
+
+  function sair() {
+    token = "";
+    document.getElementById("tela-app").style.display = "none";
+    document.getElementById("tela-login").style.display = "block";
+  }
+</script>
+</body>
+</html>
