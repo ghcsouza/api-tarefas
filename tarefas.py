@@ -7,6 +7,8 @@ import models
 from database import engine, get_db
 from auth import verificar_senha, criar_token, get_usuario_atual, usuarios_db
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -25,6 +27,11 @@ class TarefaSchema(BaseModel):
     titulo: str
     descricao: Optional[str] = None
     concluida: bool = False
+
+
+@app.get("/app")
+def frontend():
+    return FileResponse("index.html")
 
 @app.get("/")
 def inicio():
